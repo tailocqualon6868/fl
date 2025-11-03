@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bảng Điều Khiển Phân Tích Tài Chính</title>
+    <!-- Tải Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tải Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Cấu hình font chữ Inter cho Tailwind -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                },
+            },
+        };
+    </script>
+    <style>
+        /* Đảm bảo font Inter được tải */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <h1 class="text-3xl font-bold text-center mb-8 text-gray-800">
+            Bảng Điều Khiển Phân Tích Tài Chính (2020-2024)
+        </h1>
+
+        <!-- Grid chứa các biểu đồ -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            <!-- Biểu đồ 1: Chỉ số Thanh khoản (Ratio Analysis) -->
+            <div class="bg-white p-6 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                <h2 class="text-xl font-semibold text-center mb-4 text-gray-700">Xu Hướng Chỉ Số Thanh Khoản</h2>
+                <canvas id="liquidityChart"></canvas>
+            </div>
+
+            <!-- Biểu đồ 2: Chỉ số Sinh lời (Ratio Analysis) -->
+            <div class="bg-white p-6 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                <h2 class="text-xl font-semibold text-center mb-4 text-gray-700">Xu Hướng Chỉ Số Sinh Lời</h2>
+                <canvas id="profitabilityChart"></canvas>
+            </div>
+
+            <!-- Biểu đồ 3: Chỉ số Đòn bẩy & Hiệu quả (Ratio Analysis) -->
+            <div class="bg-white p-6 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                <h2 class="text-xl font-semibold text-center mb-4 text-gray-700">Xu Hướng Chỉ Số Đòn Bẩy & Hiệu Quả</h2>
+                <canvas id="leverageChart"></canvas>
+            </div>
+
+            <!-- Biểu đồ 4: Cơ cấu Báo cáo Thu nhập (Common size income statement) -->
+            <div class="bg-white p-6 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                <h2 class="text-xl font-semibold text-center mb-4 text-gray-700">Cơ Cấu Thu Nhập (Theo % Doanh Thu Thuần)</h2>
+                <canvas id="incomeStackChart"></canvas>
+            </div>
+
+            <!-- Biểu đồ 5: Cơ cấu Tài sản (Common size balance sheet) -->
+            <div class="bg-white p-6 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                <h2 class="text-xl font-semibold text-center mb-4 text-gray-700">Cơ Cấu Tài Sản (Năm 2024)</h2>
+                <canvas id="assetDoughnutChart"></canvas>
+            </div>
+
+            <!-- Biểu đồ 6: Cơ cấu Nguồn vốn (Common size balance sheet) -->
+            <div class="bg-white p-6 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                <h2 class="text-xl font-semibold text-center mb-4 text-gray-700">Cơ Cấu Nguồn Vốn (Năm 2024)</h2>
+                <canvas id="liabilityDoughnutChart"></canvas>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Chờ cho DOM được tải hoàn toàn
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // Dữ liệu chung cho các biểu đồ
+            const labels = ['2020', '2021', '2022', '2023', '2024'];
+            const chartColors = {
+                blue: 'rgba(59, 130, 246, 0.8)',
+                green: 'rgba(16, 185, 129, 0.8)',
+                red: 'rgba(239, 68, 68, 0.8)',
+                yellow: 'rgba(245, 158, 11, 0.8)',
+                purple: 'rgba(139, 92, 246, 0.8)',
+                orange: 'rgba(249, 115, 22, 0.8)',
+                gray: 'rgba(107, 114, 128, 0.8)',
+            };
+            const chartBorders = {
+                blue: 'rgba(59, 130, 246, 1)',
+                green: 'rgba(16, 185, 129, 1)',
+                red: 'rgba(239, 68, 68, 1)',
+                yellow: 'rgba(245, 158, 11, 1)',
+                purple: 'rgba(139, 92, 246, 1)',
+                orange: 'rgba(249, 115, 22, 1)',
+                gray: 'rgba(107, 114, 128, 1)',
+            };
+
+            // Dữ liệu trích xuất từ file 'Ratio Analysis.csv'
+            const currentRatioData = [1.5258, 1.5124, 1.2584, 1.3484, 1.2826];
+            const quickRatioData = [1.1648, 1.1530, 0.9080, 0.9099, 0.8494];
+            const roaData = [0.1142, 0.1000, 0.0800, 0.0628, 0.0460];
+            const roeData = [0.2398, 0.2335, 0.2014, 0.1554, 0.1280];
+            const debtRatioData = [0.5237, 0.5724, 0.6028, 0.5959, 0.6401];
+            const assetTurnoverData = [0.9850, 1.1021, 1.1437, 1.0504, 0.9388];
+
+            // Dữ liệu trích xuất từ 'Common size income statement.csv'
+            const cogsData = [0.8161, 0.8191, 0.8436, 0.8462, 0.8541];
+            const netProfitData = [0.0895, 0.0792, 0.0652, 0.0510, 0.0390];
+            // Tính toán Chi phí khác & Thuế = 1 - COGS - Lợi nhuận ròng
+            const otherExpensesData = labels.map((_, i) => (1 - cogsData[i] - netProfitData[i]).toFixed(4));
+
+            // Dữ liệu trích xuất từ 'Common size balance sheet.csv' (cho năm 2024)
+            const currentAssets2024 = 0.6607;
+            const longTermAssets2024 = 0.3393; // (1 - 0.6607)
+            const liabilities2024 = 0.6401;
+            const equity2024 = 0.3599; // (1 - 0.6401)
+
+            // Cấu hình chung cho biểu đồ
+            const defaultLineOptions = {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                },
+                interaction: {
+                    intersect: false,
+                },
+                elements: {
+                    line: {
+                        tension: 0.1
+                    }
+                }
+            };
+            
+            // Hàm để định dạng tooltip %
+            const percentTooltip = {
+                callbacks: {
+                    label: function(context) {
+                        let label = context.dataset.label || '';
+                        if (label) {
+                            label += ': ';
+                        }
+                        if (context.parsed.y !== null) {
+                            label += new Intl.NumberFormat('vi-VN', { style: 'percent', minimumFractionDigits: 2 }).format(context.parsed.y);
+                        }
+                        return label;
+                    }
+                }
+            };
+
+            // 1. Biểu đồ Chỉ số Thanh khoản
+            new Chart(document.getElementById('liquidityChart'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Current Ratio (Lần)',
+                            data: currentRatioData,
+                            borderColor: chartBorders.blue,
+                            backgroundColor: chartColors.blue,
+                            yAxisID: 'y',
+                        },
+                        {
+                            label: 'Quick Ratio (Lần)',
+                            data: quickRatioData,
+                            borderColor: chartBorders.green,
+                            backgroundColor: chartColors.green,
+                            yAxisID: 'y',
+                        }
+                    ]
+                },
+                options: defaultLineOptions
+            });
+
+            // 2. Biểu đồ Chỉ số Sinh lời
+            new Chart(document.getElementById('profitabilityChart'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'ROA (%)',
+                            data: roaData,
+                            borderColor: chartBorders.red,
+                            backgroundColor: chartColors.red,
+                        },
+                        {
+                            label: 'ROE (%)',
+                            data: roeData,
+                            borderColor: chartBorders.purple,
+                            backgroundColor: chartColors.purple,
+                        }
+                    ]
+                },
+                options: {
+                    ...defaultLineOptions,
+                    plugins: {
+                        ...defaultLineOptions.plugins,
+                        tooltip: percentTooltip
+                    },
+                    scales: {
+                        y: {
+                            ticks: {
+                                callback: value => (value * 100).toFixed(0) + '%'
+                            }
+                        }
+                    }
+                }
+            });
+
+            // 3. Biểu đồ Chỉ số Đòn bẩy & Hiệu quả
+            new Chart(document.getElementById('leverageChart'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Debt Ratio (%)',
+                            data: debtRatioData,
+                            borderColor: chartBorders.orange,
+                            backgroundColor: chartColors.orange,
+                            yAxisID: 'yPercent',
+                        },
+                        {
+                            label: 'Total Assets Turnover (Lần)',
+                            data: assetTurnoverData,
+                            borderColor: chartBorders.yellow,
+                            backgroundColor: chartColors.yellow,
+                            yAxisID: 'yTimes',
+                        }
+                    ]
+                },
+                options: {
+                    ...defaultLineOptions,
+                    plugins: {
+                        ...defaultLineOptions.plugins,
+                         tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label.includes('%')) {
+                                         return `${label}: ${new Intl.NumberFormat('vi-VN', { style: 'percent', minimumFractionDigits: 2 }).format(context.parsed.y)}`;
+                                    }
+                                    return `${label}: ${context.parsed.y.toFixed(2)} Lần`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        yPercent: {
+                            type: 'linear',
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Tỷ lệ %'
+                            },
+                            ticks: {
+                                callback: value => (value * 100).toFixed(0) + '%'
+                            }
+                        },
+                        yTimes: {
+                            type: 'linear',
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Số lần'
+                            },
+                            grid: {
+                                drawOnChartArea: false, // Chỉ vẽ trục, không vẽ lưới
+                            },
+                        }
+                    }
+                }
+            });
+
+            // 4. Biểu đồ Cơ cấu Báo cáo Thu nhập (Stacked Bar)
+            new Chart(document.getElementById('incomeStackChart'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Lợi nhuận ròng',
+                            data: netProfitData,
+                            backgroundColor: chartColors.green,
+                        },
+                        {
+                            label: 'Chi phí khác & Thuế',
+                            data: otherExpensesData,
+                            backgroundColor: chartColors.yellow,
+                        },
+                        {
+                            label: 'Giá vốn hàng bán (COGS)',
+                            data: cogsData,
+                            backgroundColor: chartColors.red,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: percentTooltip
+                    },
+                    scales: {
+                        x: {
+                            stacked: true,
+                        },
+                        y: {
+                            stacked: true,
+                            min: 0,
+                            max: 1, // Đảm bảo trục y là 100%
+                            ticks: {
+                                callback: value => (value * 100).toFixed(0) + '%'
+                            }
+                        }
+                    }
+                }
+            });
+
+            // 5. Biểu đồ Cơ cấu Tài sản (Doughnut)
+            new Chart(document.getElementById('assetDoughnutChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Tài sản ngắn hạn', 'Tài sản dài hạn'],
+                    datasets: [{
+                        data: [currentAssets2024, longTermAssets2024],
+                        backgroundColor: [chartColors.blue, chartColors.purple],
+                        borderColor: ['#fff', '#fff']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: percentTooltip
+                    }
+                }
+            });
+
+            // 6. Biểu đồ Cơ cấu Nguồn vốn (Doughnut)
+            new Chart(document.getElementById('liabilityDoughnutChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Nợ phải trả', 'Vốn chủ sở hữu'],
+                    datasets: [{
+                        data: [liabilities2024, equity2024],
+                        backgroundColor: [chartColors.red, chartColors.green],
+                        borderColor: ['#fff', '#fff']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: percentTooltip
+                    }
+                }
+            });
+
+        });
+    </script>
+</body>
+</html>
